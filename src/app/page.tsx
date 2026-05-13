@@ -4,11 +4,16 @@ import { useMemo, useState } from "react"
 import {
   BadgeCheck,
   Brain,
+  Car,
   Check,
   ChevronRight,
+  CreditCard,
+  Gift,
   Heart,
+  Home as HomeIcon,
   Layers3,
   Minus,
+  PackageCheck,
   Plus,
   Search,
   ShieldCheck,
@@ -17,6 +22,7 @@ import {
   Sparkles,
   Star,
   Truck,
+  User,
   Wand2,
   X,
   Zap,
@@ -43,6 +49,8 @@ type CartLine = {
   id: number
   qty: number
 }
+
+type Panel = "cart" | "account" | "checkout" | "support" | null
 
 const products: Product[] = [
   {
@@ -173,10 +181,80 @@ const products: Product[] = [
     sustainability: 80,
     delivery: "Tomorrow",
   },
+  {
+    id: 9,
+    name: "Chef's Market Dinner Box",
+    category: "Food",
+    price: 74,
+    compareAt: 96,
+    rating: 4.8,
+    reviews: 2680,
+    image: "https://images.unsplash.com/photo-1543353071-10c8ba85a904?auto=format&fit=crop&w=1000&q=80",
+    colors: ["#16a34a", "#f97316", "#fde68a"],
+    tags: ["food", "fresh", "family", "gift", "fast"],
+    description: "A chef-designed dinner kit with seasonal produce, premium proteins, and 25-minute recipes.",
+    stock: 64,
+    sustainability: 93,
+    delivery: "Today",
+  },
+  {
+    id: 10,
+    name: "Botanical Cold Press Pack",
+    category: "Food",
+    price: 42,
+    compareAt: 58,
+    rating: 4.6,
+    reviews: 1210,
+    image: "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=1000&q=80",
+    colors: ["#22c55e", "#fb7185", "#facc15"],
+    tags: ["food", "health", "fresh", "routine", "gift"],
+    description: "Six cold-pressed juices balanced for energy, recovery, and clean morning routines.",
+    stock: 38,
+    sustainability: 87,
+    delivery: "Today",
+  },
+  {
+    id: 11,
+    name: "Aurelia GT Electric Coupe",
+    category: "Cars",
+    price: 58900,
+    compareAt: 64200,
+    rating: 4.9,
+    reviews: 420,
+    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1000&q=80",
+    colors: ["#111827", "#dc2626", "#f8fafc"],
+    tags: ["cars", "premium", "electric", "performance", "travel"],
+    description: "A performance EV coupe with 410-mile range, panoramic cockpit, and assisted highway driving.",
+    stock: 5,
+    sustainability: 96,
+    delivery: "Reserve",
+  },
+  {
+    id: 12,
+    name: "Terra X Hybrid SUV",
+    category: "Cars",
+    price: 43800,
+    compareAt: 47900,
+    rating: 4.8,
+    reviews: 690,
+    image: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
+    colors: ["#064e3b", "#0f172a", "#e5e7eb"],
+    tags: ["cars", "family", "hybrid", "travel", "safe"],
+    description: "A family SUV with hybrid range, intelligent cargo planning, and advanced driver assistance.",
+    stock: 9,
+    sustainability: 89,
+    delivery: "Reserve",
+  },
 ]
 
 const categories = ["All", ...Array.from(new Set(products.map((product) => product.category)))]
-const moods = ["gift", "travel", "work", "home", "fitness", "premium", "sustainable"]
+const moods = ["gift", "travel", "work", "home", "fitness", "food", "cars", "premium", "sustainable"]
+const paymentMethods = [
+  { id: "card", label: "Visa ending 4242", detail: "Instant confirmation", icon: CreditCard },
+  { id: "paypal", label: "PayPal", detail: "Buyer protection enabled", icon: ShieldCheck },
+  { id: "apple", label: "Apple Pay", detail: "Fast biometric checkout", icon: Zap },
+  { id: "installments", label: "4 interest-free payments", detail: "Split with Shop Pay style flow", icon: Layers3 },
+]
 
 function currency(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value)
@@ -204,7 +282,11 @@ export default function Home() {
   const [wishlist, setWishlist] = useState<number[]>([3])
   const [compare, setCompare] = useState<number[]>([1, 2])
   const [selectedProductId, setSelectedProductId] = useState(1)
-  const [showCart, setShowCart] = useState(false)
+  const [panel, setPanel] = useState<Panel>(null)
+  const [selectedPayment, setSelectedPayment] = useState("card")
+  const [accountTier, setAccountTier] = useState("Gold")
+  const [orderPlaced, setOrderPlaced] = useState(false)
+  const [toast, setToast] = useState("AI concierge is ready")
 
   const scoredProducts = useMemo(() => {
     const filtered = products
@@ -224,6 +306,9 @@ export default function Home() {
   const subtotal = cartProducts.reduce((sum, item) => sum + item.price * item.qty, 0)
   const savings = cartProducts.reduce((sum, item) => sum + (item.compareAt - item.price) * item.qty, 0)
   const recommendedBundle = scoredProducts.slice(0, 3)
+  const activeCategoryProducts = category === "All" ? products : products.filter((product) => product.category === category)
+  const foodProducts = products.filter((product) => product.category === "Food")
+  const carProducts = products.filter((product) => product.category === "Cars")
 
   function addToCart(id: number) {
     setCart((current) => {
@@ -231,6 +316,7 @@ export default function Home() {
       if (existing) return current.map((line) => (line.id === id ? { ...line, qty: line.qty + 1 } : line))
       return [...current, { id, qty: 1 }]
     })
+    setToast(`${products.find((product) => product.id === id)?.name} added to Smart Cart`)
   }
 
   function updateQty(id: number, delta: number) {
@@ -250,6 +336,38 @@ export default function Home() {
 
   function toggleWishlist(id: number) {
     setWishlist((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  }
+
+  function applyAiPersonalization() {
+    const lower = query.toLowerCase()
+    if (lower.includes("car") || lower.includes("electric") || lower.includes("suv")) {
+      setCategory("Cars")
+      setMood("cars")
+    } else if (lower.includes("food") || lower.includes("dinner") || lower.includes("juice")) {
+      setCategory("Food")
+      setMood("food")
+    } else if (lower.includes("home") || lower.includes("lamp") || lower.includes("chair")) {
+      setCategory("Home")
+      setMood("home")
+    } else if (lower.includes("gift")) {
+      setMood("gift")
+    } else if (lower.includes("travel")) {
+      setMood("travel")
+    }
+    setSort("AI Match")
+    setToast("AI personalized the catalog from your shopping brief")
+    document.getElementById("shop")?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  function buildBundle() {
+    recommendedBundle.forEach((product) => addToCart(product.id))
+    setPanel("cart")
+    setToast("Smart bundle added with AI bundle credit")
+  }
+
+  function placeOrder() {
+    setOrderPlaced(true)
+    setToast("Order confirmed. Demo checkout flow completed")
   }
 
   return (
@@ -279,8 +397,17 @@ export default function Home() {
               Checkout
             </a>
           </nav>
+          <div className="hidden items-center gap-2 md:flex">
+            <button
+              onClick={() => setPanel("account")}
+              className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:border-cyan-300/60"
+            >
+              <User className="h-4 w-4" />
+              {accountTier}
+            </button>
+          </div>
           <button
-            onClick={() => setShowCart(true)}
+            onClick={() => setPanel("cart")}
             className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:border-emerald-300/60"
           >
             <ShoppingBag className="h-4 w-4" />
@@ -314,7 +441,10 @@ export default function Home() {
                 className="min-h-12 flex-1 rounded-md border border-white/10 bg-slate-950 px-4 text-slate-100 outline-none transition focus:border-emerald-300"
                 placeholder="Tell the AI what you want..."
               />
-              <button className="flex items-center justify-center gap-2 rounded-md bg-emerald-300 px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-200">
+              <button
+                onClick={applyAiPersonalization}
+                className="flex items-center justify-center gap-2 rounded-md bg-emerald-300 px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-200"
+              >
                 <Search className="h-4 w-4" />
                 Personalize
               </button>
@@ -355,13 +485,24 @@ export default function Home() {
                 <span className="text-4xl font-black">{currency(selectedProduct.price)}</span>
                 <span className="pb-1 text-sm text-slate-500 line-through">{currency(selectedProduct.compareAt)}</span>
               </div>
-              <button
-                onClick={() => addToCart(selectedProduct.id)}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-200"
-              >
-                <ShoppingBag className="h-4 w-4" />
-                Add to Cart
-              </button>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => addToCart(selectedProduct.id)}
+                  className="flex items-center justify-center gap-2 rounded-md bg-white px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-200"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    addToCart(selectedProduct.id)
+                    setPanel("checkout")
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-md bg-emerald-300 px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-200"
+                >
+                  Buy now
+                </button>
+              </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-[#f5f2ea] p-5 text-slate-950">
               <div className="flex items-center gap-2 font-bold">
@@ -379,8 +520,36 @@ export default function Home() {
                   />
                 ))}
               </div>
+              <button onClick={buildBundle} className="mt-4 w-full rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+                Add bundle
+              </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#0a0d12] px-5 py-8">
+        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-4">
+          {[
+            ["Food Market", `${foodProducts.length} fresh drops`, Gift, "Food"],
+            ["Car Showroom", `${carProducts.length} vehicles`, Car, "Cars"],
+            ["Home Studio", "Design-led living", HomeIcon, "Home"],
+            ["Member Deals", `${wishlist.length} saved items`, User, "All"],
+          ].map(([title, copy, Icon, target]) => (
+            <button
+              key={String(title)}
+              onClick={() => {
+                setCategory(String(target))
+                setMood(String(target).toLowerCase() === "all" ? "gift" : String(target).toLowerCase())
+                document.getElementById("shop")?.scrollIntoView({ behavior: "smooth" })
+              }}
+              className="group rounded-lg border border-white/10 bg-white/[0.04] p-5 text-left transition hover:border-emerald-300/50"
+            >
+              <Icon className="h-7 w-7 text-emerald-200" />
+              <div className="mt-4 text-xl font-black">{title}</div>
+              <div className="mt-1 text-sm text-slate-400">{copy}</div>
+            </button>
+          ))}
         </div>
       </section>
 
@@ -549,16 +718,16 @@ export default function Home() {
 
       <section id="checkout" className="border-t border-white/10 bg-[#f5f2ea] px-5 py-12 text-slate-950">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-3">
-          {[
-            ["Fast checkout", "One-tap cart summary, delivery promise, and savings visibility.", Truck],
-            ["Trust layer", "Returns, warranty, verified reviews, and secure payment signals.", ShieldCheck],
-            ["Loyalty engine", "Personalized rewards, bundle credits, and post-purchase suggestions.", Sparkles],
-          ].map(([title, copy, Icon]) => (
+            {[
+              ["Fast checkout", "One-tap cart summary, delivery promise, and savings visibility.", Truck, "checkout"],
+              ["Trust layer", "Returns, warranty, verified reviews, and secure payment signals.", ShieldCheck, "support"],
+              ["Loyalty engine", "Personalized rewards, bundle credits, and post-purchase suggestions.", Sparkles, "account"],
+            ].map(([title, copy, Icon, nextPanel]) => (
             <div key={String(title)} className="rounded-lg border border-slate-950/10 bg-white p-6">
               <Icon className="h-7 w-7" />
               <h3 className="mt-4 text-2xl font-black">{title}</h3>
               <p className="mt-2 leading-7 text-slate-700">{copy}</p>
-              <button className="mt-5 flex items-center gap-2 font-bold">
+              <button onClick={() => setPanel(nextPanel as Panel)} className="mt-5 flex items-center gap-2 font-bold">
                 Explore <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -566,57 +735,192 @@ export default function Home() {
         </div>
       </section>
 
-      {showCart && (
+      <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/90 px-4 py-2 text-sm text-slate-200 shadow-2xl backdrop-blur">
+        {toast}
+      </div>
+
+      {panel && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm">
           <div className="ml-auto flex h-full w-full max-w-md flex-col bg-[#101720] shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 p-5">
               <div>
-                <h2 className="text-2xl font-black">Smart Cart</h2>
-                <p className="text-sm text-slate-400">Savings: {currency(savings)}</p>
+                <h2 className="text-2xl font-black">
+                  {panel === "cart" && "Smart Cart"}
+                  {panel === "checkout" && "Checkout"}
+                  {panel === "account" && "Account"}
+                  {panel === "support" && "Trust Center"}
+                </h2>
+                <p className="text-sm text-slate-400">
+                  {panel === "cart" && `Savings: ${currency(savings)}`}
+                  {panel === "checkout" && "Payment, delivery, and order confirmation"}
+                  {panel === "account" && "Profile, loyalty, and personalization"}
+                  {panel === "support" && "Returns, warranties, and buyer protection"}
+                </p>
               </div>
-              <button onClick={() => setShowCart(false)} className="rounded-md border border-white/10 p-2">
+              <button onClick={() => setPanel(null)} className="rounded-md border border-white/10 p-2">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="flex-1 space-y-4 overflow-auto p-5">
-              {cartProducts.map((item) => (
-                <div key={item.id} className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <img src={item.image} alt={item.name} className="h-20 w-20 rounded-md object-cover" />
-                  <div className="flex-1">
-                    <div className="font-bold">{item.name}</div>
-                    <div className="text-sm text-slate-400">{currency(item.price)}</div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <button onClick={() => updateQty(item.id, -1)} className="rounded border border-white/10 p-1">
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span className="w-6 text-center text-sm">{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, 1)} className="rounded border border-white/10 p-1">
-                        <Plus className="h-3 w-3" />
-                      </button>
+              {(panel === "cart" || panel === "checkout") && (
+                <>
+                  {cartProducts.length === 0 && (
+                    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-5 text-slate-300">
+                      Your cart is empty. Add a product or smart bundle to start checkout.
+                    </div>
+                  )}
+                  {cartProducts.map((item) => (
+                    <div key={item.id} className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                      <img src={item.image} alt={item.name} className="h-20 w-20 rounded-md object-cover" />
+                      <div className="flex-1">
+                        <div className="font-bold">{item.name}</div>
+                        <div className="text-sm text-slate-400">{currency(item.price)}</div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <button onClick={() => updateQty(item.id, -1)} className="rounded border border-white/10 p-1">
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="w-6 text-center text-sm">{item.qty}</span>
+                          <button onClick={() => updateQty(item.id, 1)} className="rounded border border-white/10 p-1">
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {panel === "checkout" && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                    <div className="mb-3 font-bold">Payment method</div>
+                    <div className="space-y-2">
+                      {paymentMethods.map((method) => (
+                        <button
+                          key={method.id}
+                          onClick={() => setSelectedPayment(method.id)}
+                          className={`flex w-full items-center gap-3 rounded-md border p-3 text-left transition ${
+                            selectedPayment === method.id ? "border-emerald-300 bg-emerald-300/10" : "border-white/10"
+                          }`}
+                        >
+                          <method.icon className="h-5 w-5 text-emerald-200" />
+                          <span className="flex-1">
+                            <span className="block font-semibold">{method.label}</span>
+                            <span className="text-xs text-slate-400">{method.detail}</span>
+                          </span>
+                          {selectedPayment === method.id && <Check className="h-4 w-4 text-emerald-200" />}
+                        </button>
+                      ))}
                     </div>
                   </div>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                    <div className="font-bold">Delivery address</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-300">
+                      Hani Ghena, Algiers workspace. Fastest mixed delivery selected automatically.
+                    </div>
+                  </div>
+                  {orderPlaced && (
+                    <div className="rounded-lg border border-emerald-300/30 bg-emerald-300/10 p-4 text-emerald-100">
+                      <PackageCheck className="mb-2 h-6 w-6" />
+                      Order confirmed. Confirmation #AUR-2048 has been generated.
+                    </div>
+                  )}
                 </div>
-              ))}
+              )}
+
+              {panel === "account" && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-cyan-300 font-black text-slate-950">
+                        HG
+                      </div>
+                      <div>
+                        <div className="text-xl font-black">Hani Ghena</div>
+                        <div className="text-sm text-slate-400">{accountTier} member · 12,480 points</div>
+                      </div>
+                    </div>
+                    <div className="mt-5 grid grid-cols-3 gap-2 text-center text-sm">
+                      <div className="rounded-md bg-white/[0.04] p-3">
+                        <div className="font-black">{wishlist.length}</div>
+                        <div className="text-slate-400">Saved</div>
+                      </div>
+                      <div className="rounded-md bg-white/[0.04] p-3">
+                        <div className="font-black">8</div>
+                        <div className="text-slate-400">Orders</div>
+                      </div>
+                      <div className="rounded-md bg-white/[0.04] p-3">
+                        <div className="font-black">VIP</div>
+                        <div className="text-slate-400">Perks</div>
+                      </div>
+                    </div>
+                  </div>
+                  {["Gold", "Platinum", "Founder"].map((tier) => (
+                    <button
+                      key={tier}
+                      onClick={() => {
+                        setAccountTier(tier)
+                        setToast(`Account tier switched to ${tier}`)
+                      }}
+                      className={`w-full rounded-md border p-3 text-left ${
+                        accountTier === tier ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-white/[0.04]"
+                      }`}
+                    >
+                      {tier} personalization profile
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {panel === "support" && (
+                <div className="space-y-4">
+                  {[
+                    ["30-day returns", "Prepaid returns for most categories with instant exchange recommendations."],
+                    ["Car reservations", "Refundable reservations, virtual showroom, and advisor follow-up."],
+                    ["Fresh food guarantee", "Same-day replacement credit if cold-chain delivery misses quality checks."],
+                    ["Secure payments", "Tokenized cards, PayPal, Apple Pay, and installment options."],
+                  ].map(([title, copy]) => (
+                    <div key={title} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                      <div className="font-bold">{title}</div>
+                      <div className="mt-1 text-sm leading-6 text-slate-300">{copy}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="border-t border-white/10 p-5">
-              <div className="mb-4 space-y-2 text-sm">
-                <div className="flex justify-between text-slate-300">
-                  <span>Subtotal</span>
-                  <span>{currency(subtotal)}</span>
+              {(panel === "cart" || panel === "checkout") && (
+                <div className="mb-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-slate-300">
+                    <span>Subtotal</span>
+                    <span>{currency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-200">
+                    <span>AI bundle credit</span>
+                    <span>-{currency(Math.round(subtotal * 0.08))}</span>
+                  </div>
+                  <div className="flex justify-between text-xl font-black">
+                    <span>Total</span>
+                    <span>{currency(Math.max(0, subtotal - Math.round(subtotal * 0.08)))}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-emerald-200">
-                  <span>AI bundle credit</span>
-                  <span>-{currency(Math.round(subtotal * 0.08))}</span>
-                </div>
-                <div className="flex justify-between text-xl font-black">
-                  <span>Total</span>
-                  <span>{currency(Math.max(0, subtotal - Math.round(subtotal * 0.08)))}</span>
-                </div>
-              </div>
-              <button className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-300 px-4 py-3 font-black text-slate-950">
-                <Check className="h-4 w-4" />
-                Checkout Securely
-              </button>
+              )}
+              {panel === "cart" && (
+                <button onClick={() => setPanel("checkout")} className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-300 px-4 py-3 font-black text-slate-950">
+                  Checkout Securely
+                </button>
+              )}
+              {panel === "checkout" && (
+                <button onClick={placeOrder} className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-300 px-4 py-3 font-black text-slate-950">
+                  <Check className="h-4 w-4" />
+                  Place Demo Order
+                </button>
+              )}
+              {(panel === "account" || panel === "support") && (
+                <button onClick={() => setPanel(null)} className="flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-3 font-black text-slate-950">
+                  Done
+                </button>
+              )}
             </div>
           </div>
         </div>
